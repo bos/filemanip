@@ -1,7 +1,8 @@
 {-# OPTIONS_GHC -fglasgow-exts #-}
 
 module System.FilePath.Find (
-      FileType(..)
+      FileInfo(..)
+    , FileType(..)
     , FindClause
     , FilterPredicate
     , RecursionPredicate
@@ -15,6 +16,7 @@ module System.FilePath.Find (
     , filePath
     , fileStatus
     , depth
+    , fileInfo
 
     , always
     , extension
@@ -66,9 +68,18 @@ import qualified Control.Exception as E
 import qualified System.Posix.Files as F
 import qualified System.Posix.Types as T
 
-type Info = (FilePath, Int, F.FileStatus)
+data FileInfo = FileInfo
+    {
+      infoPath :: FilePath
+    , infoDepth :: Int
+    , infoStatus :: F.FileStatus
+    }
 
-newtype FindClause a = FI { runFI :: State Info a }
+mkFI :: FilePath -> Int -> F.FileStatus -> FileInfo
+
+mkFI = FileInfo
+
+newtype FindClause a = FI { runFI :: State FileInfo a }
     deriving (Functor, Monad, MonadFix)
 
 evalFI :: FindClause a
@@ -77,23 +88,27 @@ evalFI :: FindClause a
        -> F.FileStatus
        -> a
 
-evalFI m p d s = evalState (runFI m) (p, d, s)
+evalFI m p d s = evalState (runFI m) (mkFI p d s)
 
-mkFI :: (Info -> (a, Info)) -> FindClause a
+mkFindClause :: (FileInfo -> (a, FileInfo)) -> FindClause a
 
-mkFI = FI . State
+mkFindClause = FI . State
+
+fileInfo :: FindClause FileInfo
+
+fileInfo = mkFindClause $ \st -> (st, st)
 
 filePath :: FindClause FilePath
 
-filePath = mkFI $ \st@(p, _, _) -> (p, st)
+filePath = infoPath `liftM` fileInfo
 
 depth :: FindClause Int
 
-depth = mkFI $ \st@(_, d, _) -> (d, st)
+depth = infoDepth `liftM` fileInfo
 
 fileStatus :: FindClause F.FileStatus
 
-fileStatus = mkFI $ \st@(_, _, s) -> (s, st)
+fileStatus = infoStatus `liftM` fileInfo
 
 type FilterPredicate = FindClause Bool
 type RecursionPredicate = FindClause Bool
@@ -140,7 +155,7 @@ find = findWithHandler warnOnError
 
 foldWithHandler :: (FilePath -> a -> E.Exception -> IO a)
                 -> RecursionPredicate
-                -> (a -> FindClause a)
+                -> (a -> FileInfo -> a)
                 -> a
                 -> FilePath
                 -> IO a
@@ -151,16 +166,16 @@ foldWithHandler errHandler recurse f state path =
   where visit state path depth st =
             if F.isDirectory st && evalFI recurse path depth st
             then traverse state path (succ depth) st
-            else return (evalFI (f state) path depth st)
+            else return (f state (mkFI path depth st))
         traverse state dir depth dirSt = E.handle (errHandler dir state) $
             getDirContents dir >>=
-                flip foldM (evalFI (f state) dir depth dirSt) (\state name ->
+                flip foldM (f state (mkFI dir depth dirSt)) (\state name ->
                     E.handle (errHandler dir state) $
                     let path = dir </> name
                     in F.getSymbolicLinkStatus path >>= visit state path depth)
 
 fold :: RecursionPredicate
-     -> (a -> FindClause a)
+     -> (a -> FileInfo -> a)
      -> a
      -> FilePath
      -> IO a
