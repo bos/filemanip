@@ -36,6 +36,8 @@ module System.FilePath.Find (
     , modificationTime
     , statusChangeTime
 
+    , linkTarget
+
     , (~?)
     , (/~?)
     , (==?)
@@ -46,6 +48,8 @@ module System.FilePath.Find (
     , (<=?)
     , (&&?)
     , (||?)
+
+    , (.&.?)
     ) where
 
 import qualified Control.Exception as E
