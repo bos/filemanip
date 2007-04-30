@@ -286,89 +286,46 @@ liftOp :: Monad m => (a -> b -> c) -> m a -> b -> m c
 
 liftOp f a b = a >>= \a' -> return (f a' b)
 
-(~~?) :: FindClause FilePath
-      -> GlobPattern
-      -> FindClause Bool
-
+(~~?) :: FindClause FilePath -> GlobPattern -> FindClause Bool
 (~~?) = liftOp (~~)
-
 infix 4 ~~?
 
-(/~?) :: FindClause FilePath
-       -> GlobPattern
-       -> FindClause Bool
+(/~?) :: FindClause FilePath -> GlobPattern -> FindClause Bool
 (/~?) = liftOp (/~)
-      
 infix 4 /~?
 
-(==?) :: Eq a => FindClause a
-      -> a
-      -> FindClause Bool
-
+(==?) :: Eq a => FindClause a -> a -> FindClause Bool
 (==?) = liftOp (==)
-
 infix 4 ==?
 
-(/=?) :: Eq a => FindClause a
-      -> a
-      -> FindClause Bool
-
+(/=?) :: Eq a => FindClause a -> a -> FindClause Bool
 (/=?) = liftOp (/=)
-
 infix 4 /=?
 
-(>?) :: Ord a => FindClause a
-     -> a
-     -> FindClause Bool
-
+(>?) :: Ord a => FindClause a -> a -> FindClause Bool
 (>?) = liftOp (>)
-
 infix 4 >?
 
-(<?) :: Ord a => FindClause a
-     -> a
-     -> FindClause Bool
-
+(<?) :: Ord a => FindClause a -> a -> FindClause Bool
 (<?) = liftOp (<)
-
 infix 4 <?
 
-(.&.?) :: Bits a => FindClause a
-       -> a
-       -> FindClause a
-
+(.&.?) :: Bits a => FindClause a -> a -> FindClause a
 (.&.?) = liftOp (.&.)
-
 infixl 7 .&.?
 
-(>=?) :: Ord a => FindClause a
-      -> a
-      -> FindClause Bool
-
+(>=?) :: Ord a => FindClause a -> a -> FindClause Bool
 (>=?) = liftOp (>=)
-
 infix 4 >=?
 
-(<=?) :: Ord a => FindClause a
-      -> a
-      -> FindClause Bool
-
+(<=?) :: Ord a => FindClause a -> a -> FindClause Bool
 (<=?) = liftOp (<=)
-
 infix 4 <=?
 
-(&&?) :: FindClause Bool
-      -> FindClause Bool
-      -> FindClause Bool
-
+(&&?) :: FindClause Bool -> FindClause Bool -> FindClause Bool
 (&&?) = liftM2 (&&)
-
 infixr 3 &&?
 
-(||?) :: FindClause Bool
-      -> FindClause Bool
-      -> FindClause Bool
-
+(||?) :: FindClause Bool -> FindClause Bool -> FindClause Bool
 (||?) = liftM2 (||)
-
 infixr 2 ||?
