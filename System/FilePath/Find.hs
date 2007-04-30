@@ -38,7 +38,8 @@ module System.FilePath.Find (
     , modificationTime
     , statusChangeTime
 
-    , linkTarget
+    , readLink
+    , followStatus
 
     , (~~?)
     , (/~?)
@@ -60,7 +61,8 @@ import Control.Monad.State (State(..), evalState)
 import Data.Bits (Bits, (.&.))
 import Data.List (sort)
 import System.Directory (getDirectoryContents)
-import System.FilePath ((</>), takeDirectory, takeExtension, takeFileName)
+import System.FilePath ((</>), replaceFileName, takeDirectory, takeExtension,
+                        takeFileName)
 import System.FilePath.GlobPattern (GlobPattern, (~~), (/~))
 import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
@@ -73,7 +75,11 @@ data FileInfo = FileInfo
       infoPath :: FilePath
     , infoDepth :: Int
     , infoStatus :: F.FileStatus
-    }
+    } deriving (Eq)
+
+instance Eq F.FileStatus where
+    a == b = F.deviceID a == F.deviceID b &&
+             F.fileID a == F.fileID b
 
 mkFI :: FilePath -> Int -> F.FileStatus -> FileInfo
 
@@ -196,14 +202,23 @@ fileName = takeFileName `liftM` filePath
 directory :: FindClause FilePath
 directory = takeDirectory `liftM` filePath
 
-linkTarget :: FindClause (Maybe FilePath)
-linkTarget = do
+withLink :: (FilePath -> IO a) -> FindClause (Maybe a)
+
+withLink f = do
     path <- filePath
     st <- fileStatus
     return $ if F.isSymbolicLink st
-      then unsafePerformIO $ E.handle (const (return Nothing))
-             (Just `liftM` F.readSymbolicLink path)
-      else Nothing
+        then unsafePerformIO $ E.handle (const (return Nothing)) $
+             Just `liftM` f path
+        else Nothing
+
+readLink :: FindClause (Maybe FilePath)
+
+readLink = withLink F.readSymbolicLink
+
+followStatus :: FindClause (Maybe F.FileStatus)
+
+followStatus = withLink F.getFileStatus
 
 data FileType = BlockDevice
               | CharacterDevice
