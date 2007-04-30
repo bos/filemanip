@@ -8,7 +8,8 @@ Category:	System
 Description:	A Haskell library for working with files and directories.
 		Includes modules for pattern matching, finding files,
 		and more.
-Build-Depends:	base, filepath, unix
+Build-Depends:	base, filepath, mtl, unix
+GHC-Options:    -Wall
 Exposed-Modules:
 	System.FilePath.Find,
 	System.FilePath.Glob
