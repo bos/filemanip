@@ -12,4 +12,4 @@ Build-Depends:	base, filepath, mtl, unix
 GHC-Options:    -Wall
 Exposed-Modules:
 	System.FilePath.Find,
-	System.FilePath.Glob
+	System.FilePath.GlobPattern
