@@ -1,6 +1,7 @@
 module System.FilePath.Glob (
       GlobPattern
-    , match
+    , (~~)
+    , (/~)
     ) where
 
 import Control.Arrow (second)
@@ -20,8 +21,6 @@ spanClass c = gs []
                                      (e:es) -> gs (e:'\\':acc) es
                                      _ -> error "unterminated escape"
                         | otherwise = gs (d:acc) ds
-
-type CharRange = (Char, Char)
 
 data Ix a => SRange a = SRange [a] [(a, a)]
                       deriving (Show)
@@ -57,7 +56,7 @@ parseGlob ('*':cs) = MatchDir : parseGlob cs
 parseGlob ('?':cs) = MatchChar : parseGlob cs
 parseGlob ('[':cs) = let (cc, ccs) = spanClass ']' cs
                          cls = case cc of
-                               ('!':ccs) -> MatchClass False $ makeClass ccs
+                               ('!':ccs') -> MatchClass False $ makeClass ccs'
                                _ -> MatchClass True $ makeClass cc
                      in cls : parseGlob ccs
 parseGlob ('(':cs) = let (gg, ggs) = spanClass ')' cs
@@ -65,9 +64,9 @@ parseGlob ('(':cs) = let (gg, ggs) = spanClass ')' cs
     where breakGroup :: String -> String -> [String]
           breakGroup acc [] = [reverse acc]
           breakGroup _ ['\\'] = error "group: unterminated escape"
-          breakGroup acc ('\\':c:cs) = breakGroup (c:acc) cs
-          breakGroup acc ('|':cs) = reverse acc : breakGroup [] cs
-          breakGroup acc (c:cs) = breakGroup (c:acc) cs
+          breakGroup acc ('\\':c:cs') = breakGroup (c:acc) cs'
+          breakGroup acc ('|':cs') = reverse acc : breakGroup [] cs'
+          breakGroup acc (c:cs') = breakGroup (c:acc) cs'
 parseGlob ['\\'] = error "glob: unterminated escape"
 parseGlob ('\\':c:cs) = MatchLiteral [c] : parseGlob cs
 parseGlob (c:cs) = MatchLiteral [c] : parseGlob cs
@@ -112,26 +111,32 @@ matchTerms (MatchClass k c:ts) cs = matchClass cs >>= matchTerms ts
                             where inClass = b `inSRange` c
           matchClass _ = fail "no match"
 matchTerms (MatchGroup g:ts) cs = matchGroup g cs >>= matchTerms ts
-    where matchGroup g as | any null g = return as
-          matchGroup g (a:as) | a `elem` map head g =
-                                  matchGroup (map tail g) as
+    where matchGroup g' as | any null g' = return as
+          matchGroup g' (a:as) | a `elem` map head g' =
+                                   matchGroup (map tail g') as
           matchGroup _ _ = fail "not in group"
 matchTerms [MatchAny] _ = return ()
 matchTerms (MatchAny:ts) cs = matchAny cs >>= matchTerms ts
     where matchAny [] = fail "no match"
-          matchAny cs = case matchTerms ts cs of
-                          Nothing -> matchAny (tail cs)
+          matchAny cs' = case matchTerms ts cs' of
+                          Nothing -> matchAny (tail cs')
                           _ -> return cs
 matchTerms [MatchDir] cs | pathSeparator `elem` cs = fail "path separator"
                          | otherwise = return ()
 matchTerms (MatchDir:ts) cs = matchDir cs >>= matchTerms ts
     where matchDir [] = fail "no match"
           matchDir (c:_) | c == pathSeparator = fail "path separator"
-          matchDir cs = case matchTerms ts cs of
-                        Nothing -> matchDir $ tail cs
-                        _ -> return cs
+          matchDir cs' = case matchTerms ts cs' of
+                         Nothing -> matchDir $ tail cs'
+                         _ -> return cs'
+matchTerms (MatchChar:_) [] = fail "end of input"
+matchTerms (MatchChar:ts) (_:cs) = matchTerms ts cs
 
-match :: GlobPattern -> FilePath -> Bool
+(~~) :: FilePath -> GlobPattern -> Bool
 
-match pat name = let terms = simplifyTerms (parseGlob pat)
-                 in (isJust . matchTerms terms) name
+name ~~ pat = let terms = simplifyTerms (parseGlob pat)
+              in (isJust . matchTerms terms) name
+
+(/~) :: FilePath -> GlobPattern -> Bool
+
+(/~) = (not . ) . (~~)

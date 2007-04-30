@@ -38,7 +38,7 @@ module System.FilePath.Find (
 
     , linkTarget
 
-    , (~?)
+    , (~~?)
     , (/~?)
     , (==?)
     , (/=?)
@@ -52,7 +52,6 @@ module System.FilePath.Find (
     , (.&.?)
     ) where
 
-import qualified Control.Exception as E
 import Control.Monad (foldM, forM, liftM, liftM2)
 import Control.Monad.Fix (MonadFix)
 import Control.Monad.State (State(..), evalState)
@@ -60,11 +59,12 @@ import Data.Bits (Bits, (.&.))
 import Data.List (sort)
 import System.Directory (getDirectoryContents)
 import System.FilePath ((</>), takeDirectory, takeExtension, takeFileName)
-import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
+import System.FilePath.Glob (GlobPattern, (~~), (/~))
 import System.IO (hPutStrLn, stderr)
+import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
+import qualified Control.Exception as E
 import qualified System.Posix.Files as F
 import qualified System.Posix.Types as T
-import qualified System.FilePath.Glob as G
 
 type Info = (FilePath, Int, F.FileStatus)
 
@@ -79,19 +79,21 @@ evalFI :: FindClause a
 
 evalFI m p d s = evalState (runFI m) (p, d, s)
 
+mkFI :: (Info -> (a, Info)) -> FindClause a
+
 mkFI = FI . State
 
 filePath :: FindClause FilePath
 
 filePath = mkFI $ \st@(p, _, _) -> (p, st)
 
-fileStatus :: FindClause F.FileStatus
-
-fileStatus = mkFI $ \st@(_, _, s) -> (s, st)
-
 depth :: FindClause Int
 
 depth = mkFI $ \st@(_, d, _) -> (d, st)
+
+fileStatus :: FindClause F.FileStatus
+
+fileStatus = mkFI $ \st@(_, _, s) -> (s, st)
 
 type FilterPredicate = FindClause Bool
 type RecursionPredicate = FindClause Bool
@@ -254,18 +256,18 @@ liftOp :: Monad m => (a -> b -> c) -> m a -> b -> m c
 
 liftOp f a b = a >>= \a' -> return (f a' b)
 
-(~?) :: FindClause FilePath
-     -> G.GlobPattern
-     -> FindClause Bool
+(~~?) :: FindClause FilePath
+      -> GlobPattern
+      -> FindClause Bool
 
-(~?) = liftOp G.match
+(~~?) = liftOp (~~)
 
-infix 4 ~?
+infix 4 ~~?
 
 (/~?) :: FindClause FilePath
-      -> G.GlobPattern
-      -> FindClause Bool
-(/~?) = liftOp (\s p -> not (s `G.match` p))
+       -> GlobPattern
+       -> FindClause Bool
+(/~?) = liftOp (/~)
       
 infix 4 /~?
 
