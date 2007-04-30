@@ -61,7 +61,7 @@ import Data.Bits (Bits, (.&.))
 import Data.List (sort)
 import System.Directory (getDirectoryContents)
 import System.FilePath ((</>), takeDirectory, takeExtension, takeFileName)
-import System.FilePath.Glob (GlobPattern, (~~), (/~))
+import System.FilePath.GlobPattern (GlobPattern, (~~), (/~))
 import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
 import qualified Control.Exception as E

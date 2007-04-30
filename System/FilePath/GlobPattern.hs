@@ -1,4 +1,4 @@
-module System.FilePath.Glob (
+module System.FilePath.GlobPattern (
       GlobPattern
     , (~~)
     , (/~)
