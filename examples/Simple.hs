@@ -21,7 +21,7 @@ getDanglingLinks = find always (fileType ==? SymbolicLink &&?
 renameCppToC :: FilePath -> IO ()
 
 renameCppToC path = find always (extension ==? ".cpp") path >>=
-    mapM_ (renameWith (replaceExtension ".C"))
+                    mapM_ (renameWith (replaceExtension ".C"))
 
 
 
