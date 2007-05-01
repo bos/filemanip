@@ -77,7 +77,6 @@ import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
 import qualified Control.Exception as E
 import qualified System.Posix.Files as F
 import qualified System.Posix.Types as T
-import Debug.Trace
 
 data FileInfo = FileInfo
     {
