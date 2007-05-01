@@ -78,48 +78,58 @@ import qualified Control.Exception as E
 import qualified System.Posix.Files as F
 import qualified System.Posix.Types as T
 
+-- | Information collected during the traversal of a directory.
 data FileInfo = FileInfo
     {
-      infoPath :: FilePath
-    , infoDepth :: Int
-    , infoStatus :: F.FileStatus
+      infoPath :: FilePath -- ^ file path
+    , infoDepth :: Int -- ^ current recursion depth
+    , infoStatus :: F.FileStatus -- ^ status of file
     } deriving (Eq)
 
 instance Eq F.FileStatus where
     a == b = F.deviceID a == F.deviceID b &&
              F.fileID a == F.fileID b
 
+-- | Construct a 'FileInfo' value.
+
 mkFI :: FilePath -> Int -> F.FileStatus -> FileInfo
 
 mkFI = FileInfo
 
-newtype FindClause a = FI { runFI :: State FileInfo a }
+-- | Monadic container for file information, allowing for clean
+-- construction of combinators.  Wraps the 'State' monad, but doesn't
+-- allow 'get' or 'put'.
+newtype FindClause a = FC { runFC :: State FileInfo a }
     deriving (Functor, Monad)
 
+-- | Run the given find clause and return a pure value.
 evalFI :: FindClause a
        -> FilePath
        -> Int
        -> F.FileStatus
        -> a
-
-evalFI m p d s = evalState (runFI m) (mkFI p d s)
+evalFI m p d s = evalState (runFC m) (mkFI p d s)
 
 mkFindClause :: (FileInfo -> (a, FileInfo)) -> FindClause a
 
-mkFindClause = FI . State
+mkFindClause = FC . State
 
+-- | Return the current 'FileInfo'.
 fileInfo :: FindClause FileInfo
 
 fileInfo = mkFindClause $ \st -> (st, st)
 
+-- | Return the name of the file being visited.
 filePath :: FindClause FilePath
 
 filePath = infoPath `liftM` fileInfo
 
+-- | Return the current recursion depth.
 depth :: FindClause Int
 
 depth = infoDepth `liftM` fileInfo
 
+-- | Return the 'F.FileStatus' for the current file.
 fileStatus :: FindClause F.FileStatus
 
 fileStatus = infoStatus `liftM` fileInfo
@@ -127,6 +137,8 @@ fileStatus = infoStatus `liftM` fileInfo
 type FilterPredicate = FindClause Bool
 type RecursionPredicate = FindClause Bool
 
+-- | List the files in the given directory, sorted, and without \".\"
+-- or \"..\".
 getDirContents :: FilePath -> IO [FilePath]
 
 getDirContents dir = (sort . filter goodName) `liftM` getDirectoryContents dir
@@ -134,11 +146,15 @@ getDirContents dir = (sort . filter goodName) `liftM` getDirectoryContents dir
           goodName ".." = False
           goodName _ = True
 
-findWithHandler :: (FilePath -> E.Exception -> IO [FilePath])
-                -> RecursionPredicate
-                -> FilterPredicate
-                -> FilePath
-                -> IO [FilePath]
+-- | Search a directory recursively, with recursion controlled by a
+-- 'RecursionPredicate'.  Lazily return a sorted list of all files
+-- matching the given 'FilterPredicate'.  Any errors that occur are
+-- dealt with by the given handler.
+findWithHandler :: (FilePath -> E.Exception -> IO [FilePath]) -- ^ error handler
+                -> RecursionPredicate -- ^ control recursion into subdirectories
+                -> FilterPredicate -- ^ decide whether a file appears in the result
+                -> FilePath -- ^ directory to start searching
+                -> IO [FilePath] -- ^ files that matched the 'FilterPredicate'
 
 findWithHandler errHandler recurse filter path =
     E.handle (errHandler path) $ F.getSymbolicLinkStatus path >>= visit path 0
@@ -158,21 +174,31 @@ findWithHandler errHandler recurse filter path =
                 then path:result
                 else result
 
-find :: RecursionPredicate
-     -> FilterPredicate
-     -> FilePath
-     -> IO [FilePath]
+-- | Search a directory recursively, with recursion controlled by a
+-- 'RecursionPredicate'.  Lazily return a sorted list of all files
+-- matching the given 'FilterPredicate'.  Any errors that occur are
+-- ignored, with warnings printed to 'stderr'.
+find :: RecursionPredicate -- ^ control recursion into subdirectories
+     -> FilterPredicate -- ^ decide whether a file appears in the result
+     -> FilePath -- ^ directory to start searching
+     -> IO [FilePath] -- ^ files that matched the 'FilterPredicate'
 
 find = findWithHandler warnOnError
     where warnOnError path err =
               hPutStrLn stderr (path ++ ": " ++ show err) >> return []
 
-foldWithHandler :: (FilePath -> a -> E.Exception -> IO a)
-                -> RecursionPredicate
-                -> (a -> FileInfo -> a)
-                -> a
-                -> FilePath
-                -> IO a
+-- | Search a directory recursively, with recursion controlled by a
+-- 'RecursionPredicate'.  Fold over all files found.  Any errors that
+-- occur are dealt with by the given handler.  The fold function is
+-- run from \"left\" to \"right\", so it should be strict in its left
+-- argument to avoid space leaks.  If you need a right-to-left fold,
+-- use 'foldr' on the result of 'findWithHandler' instead.
+foldWithHandler :: (FilePath -> a -> E.Exception -> IO a) -- ^ error handler
+                -> RecursionPredicate -- ^ control recursion into subdirectories
+                -> (a -> FileInfo -> a) -- ^ function to fold with
+                -> a -- ^ seed value for fold
+                -> FilePath -- ^ directory to start searching
+                -> IO a -- ^ final value after folding
 
 foldWithHandler errHandler recurse f state path =
     E.handle (errHandler path state) $
@@ -188,6 +214,13 @@ foldWithHandler errHandler recurse f state path =
                     let path = dir </> name
                     in F.getSymbolicLinkStatus path >>= visit state path depth)
 
+-- | Search a directory recursively, with recursion controlled by a
+-- 'RecursionPredicate'.  Fold over all files found.  Any errors that
+-- occur are ignored, with warnings printed to 'stderr'.  The fold
+-- function is run from \"left\" to \"right\", so it should be strict
+-- in its left argument to avoid space leaks.  If you need a
+-- right-to-left fold, use 'foldr' on the result of 'findWithHandler'
+-- instead.
 fold :: RecursionPredicate
      -> (a -> FileInfo -> a)
      -> a
