@@ -1,4 +1,12 @@
-{-# OPTIONS_GHC -fglasgow-exts #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+
+-- |
+-- Module:      System.FilePath.Find
+-- Copyright:   Bryan O'Sullivan
+-- License:     LGPL
+-- Maintainer:  Bryan O'Sullivan <bos@serpentine.com>
+-- Stability:   unstable
+-- Portability: Unix-like systems (requires newtype deriving)
 
 module System.FilePath.Find (
       FileInfo(..)
@@ -69,6 +77,7 @@ import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
 import qualified Control.Exception as E
 import qualified System.Posix.Files as F
 import qualified System.Posix.Types as T
+import Debug.Trace
 
 data FileInfo = FileInfo
     {
@@ -86,7 +95,7 @@ mkFI :: FilePath -> Int -> F.FileStatus -> FileInfo
 mkFI = FileInfo
 
 newtype FindClause a = FI { runFI :: State FileInfo a }
-    deriving (Functor, Monad, MonadFix)
+    deriving (Functor, Monad)
 
 evalFI :: FindClause a
        -> FilePath
@@ -281,6 +290,13 @@ modificationTime = F.modificationTime `liftM` fileStatus
 
 statusChangeTime :: FindClause T.EpochTime
 statusChangeTime = F.statusChangeTime `liftM` fileStatus
+
+contains :: FilePath -> FindClause Bool
+contains p = do
+    d <- filePath
+    return $ unsafePerformIO $
+        E.handle (const (return False)) $
+            F.getFileStatus (d </> p) >> return True
 
 liftOp :: Monad m => (a -> b -> c) -> m a -> b -> m c
 

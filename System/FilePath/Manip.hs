@@ -1,7 +1,15 @@
-{-# OPTIONS_GHC -fglasgow-exts #-}
+{-# LANGUAGE FlexibleInstances #-}
+
+-- |
+-- Module:      System.FilePath.Manip
+-- Copyright:   Bryan O'Sullivan
+-- License:     LGPL
+-- Maintainer:  Bryan O'Sullivan <bos@serpentine.com>
+-- Stability:   unstable
+-- Portability: Unix-like systems (requires flexible instances)
 
 module System.FilePath.Manip (
-      Modifiable(..)
+      Streamable(..)
     , renameWith
     , modifyWith
     , modifyWithBackup
@@ -12,43 +20,82 @@ import Control.Exception (bracket, bracket_, handle, throwIO)
 import Control.Monad (liftM)
 import Data.Bits ((.&.))
 import System.Directory (removeFile)
-import System.IO (Handle, IOMode(..), hClose, hGetContents, hPutStr, openFile)
+import System.IO (Handle, IOMode(..), hClose, openFile)
 import System.Posix.Files (fileMode, getFileStatus, rename, setFileMode)
 import System.Posix.Temp (mkstemp)
-import Data.ByteString.Base (ByteString, LazyByteString)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
+import qualified System.IO as I
 
-renameWith :: (FilePath -> FilePath) -> FilePath -> IO ()
+-- | Use a renaming function to generate a new name for a file, then
+-- rename it.
+renameWith :: (FilePath -> FilePath) -- ^ function to rename with
+           -> FilePath -- ^ file to rename
+           -> IO ()
 
 renameWith f path = rename path (f path)
 
-class Modifiable a where
-    pipeline :: (a -> a) -> Handle -> Handle -> IO ()
+-- | Type class for string manipulation over files.
+class Streamable a where
+    -- | Read the entire contents of a 'Handle'.
+    readAll :: Handle -> IO a
+    -- | Write an entire string to a 'Handle'.
+    writeAll :: Handle -> a -> IO ()
 
-instance Modifiable ByteString where
-    pipeline f ih oh = B.hGetContents ih >>= return . f >>= B.hPut oh
+instance Streamable B.ByteString where
+    readAll = B.hGetContents
+    writeAll = B.hPut
 
-instance Modifiable LazyByteString where
-    pipeline f ih oh = L.hGetContents ih >>= return . f >>= L.hPut oh
+instance Streamable L.ByteString where
+    readAll = L.hGetContents
+    writeAll = L.hPut
 
-instance Modifiable String where
-    pipeline f ih oh = hGetContents ih >>= return . f >>= hPutStr oh
+instance Streamable String where
+    readAll = I.hGetContents
+    writeAll = I.hPutStr
 
-modifyInPlace :: Modifiable a => (a -> a) -> FilePath -> IO ()
+-- | Modify a file in place using the given function.  This is
+-- performed by writing to a temporary file, then renaming it on top of
+-- the existing file when done.
+modifyInPlace :: Streamable a => (a -> a) -- ^ transformation function
+              -> FilePath -- ^ name of file to modify
+              -> IO ()
 
 modifyInPlace = modifyWith (flip rename)
 
-modifyWithBackup :: Modifiable a => (FilePath -> FilePath)
-                 -> (a -> a)
-                 -> FilePath
+-- | Modify a file in place using the given function.  The original
+-- copy of the file is saved under a new name.  This is performed by
+-- writing to a temporary file; renaming the original file to its new
+-- name; then renaming the temporary file to the original name.
+--
+-- Example:
+--
+-- @
+--     -- save original file with a \".bak\" extension
+--     'modifyWithBackup' (\<.\> \"bak\")
+-- @ 
+modifyWithBackup :: Streamable a =>
+                    (FilePath -> FilePath) -- ^ chooses new name for original file
+                 -> (a -> a) -- ^ transformation function
+                 -> FilePath -- ^ name of file to modify
                  -> IO ()
 
 modifyWithBackup f = modifyWith backup
     where backup path tmpPath = renameWith f path >> rename tmpPath path
 
-modifyWith :: Modifiable a => (FilePath -> FilePath -> IO ())
-             -> (a -> a)
+-- | Modify a file in place using the given function.  The new content
+-- is written to a temporary file.  Once this is complete, the file
+-- manipulation action is called.  Its arguments are the names of the
+-- original and temporary files.
+--
+-- Example:
+--
+-- @
+--     'modifyInPlace' = 'modifyWith' (flip rename)
+-- @ 
+modifyWith :: Streamable a =>
+                (FilePath -> FilePath -> IO ()) -- ^ file manipulation action
+             -> (a -> a) -- ^ transformation function
              -> FilePath
              -> IO ()
 
@@ -59,7 +106,7 @@ modifyWith after transform path =
             nukeTmp = handle (const ignore) (removeFile tmpPath)
         handle (\e -> nukeTmp >> throwIO e) $ do
             bracket_ ignore (hClose oh) $
-                pipeline transform ih oh
+                readAll ih >>= return . transform >>= writeAll oh
             handle (const nukeTmp) $ do
                 mode <- fileMode `liftM` getFileStatus path
                 setFileMode tmpPath (mode .&. 0777)
