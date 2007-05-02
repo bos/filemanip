@@ -1,0 +1,29 @@
+FileManip: expressive file manipulation
+---------------------------------------
+
+This package provides functions and combinators for searching,
+matching, and manipulating files.
+
+
+To build and install:
+
+  runhaskell Setup configure
+  runhaskell Setup build
+  runhaskell Setup install
+
+
+To understand:
+
+  runhaskell Setup haddock
+
+Take a look at the generated documentation in dist/doc.
+
+
+To contribute:
+
+  darcs get http://darcs.serpentine.com/filemanip
+
+
+Contributors:
+
+  Bryan O'Sullivan

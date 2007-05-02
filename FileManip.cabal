@@ -4,7 +4,7 @@ License:	LGPL
 License-File:	COPYING.LIB
 Author:		Bryan O'Sullivan <bos@serpentine.com>
 Maintainer:	Bryan O'Sullivan
-Synopsis:	File and directory manipulation for Haskell.
+Synopsis:	Expressive file and directory manipulation for Haskell.
 Category:	System
 Description:	A Haskell library for working with files and directories.
 		Includes code for pattern matching, finding files,
@@ -15,3 +15,4 @@ Exposed-Modules:
 	System.FilePath.Find,
 	System.FilePath.GlobPattern,
 	System.FilePath.Manip
+Extra-Source-Files: README
