@@ -14,9 +14,8 @@ To build and install:
 
 To understand:
 
-  runhaskell Setup haddock
+  http://darcs.serpentine.com/filemanip/dist/doc/html/FileManip/
 
-Take a look at the generated documentation in dist/doc.
 
 
 To contribute:
