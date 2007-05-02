@@ -7,6 +7,33 @@
 -- Maintainer:  Bryan O'Sullivan <bos@serpentine.com>
 -- Stability:   unstable
 -- Portability: Unix-like systems (requires newtype deriving)
+--
+-- This module provides functions for traversing a filesystem
+-- hierarchy.  The 'find' function generates a lazy list of matching
+-- files, while 'fold' performs a left fold.
+--
+-- Both 'find' and 'fold' allow fine control over recursion, using the
+-- 'FindClause' type.  This type is also used to pre-filter the results
+-- returned by 'find'.
+--
+-- The 'FindClause' type lets you write filtering and recursion
+-- control expressions clearly and easily.
+--
+-- For example, this clause matches C source files.
+--
+-- @
+-- 'extension' '==?' \".c\" '||?' 'extension' '==?' \".h\"
+-- @
+--
+-- Because 'FindClause' is a monad, you can use the usual monad
+-- machinery to, for example, lift pure functions into it.
+--
+-- Here's a clause that will return 'False' for any file whose
+-- directory name contains the word @\"temp\"@.
+--
+-- @
+-- (isInfixOf \"temp\") \`liftM\` 'directory'
+-- @
 
 module System.FilePath.Find (
       FileInfo(..)
@@ -15,12 +42,20 @@ module System.FilePath.Find (
     , FilterPredicate
     , RecursionPredicate
 
+    -- * Simple entry points
     , find
-    , findWithHandler
-
     , fold
+
+    -- * More expressive entry points
+    , findWithHandler
     , foldWithHandler
 
+    -- * Helper functions
+    , evalClause
+    , statusType
+    , liftOp
+
+    -- * Combinators for controlling recursion and filtering behaviour
     , filePath
     , fileStatus
     , depth
@@ -32,6 +67,12 @@ module System.FilePath.Find (
     , fileName
 
     , fileType
+
+    , contains
+
+    -- ** Combinator versions of 'F.FileStatus' functions from "System.Posix.Files"
+    -- $statusFunctions
+
     , deviceID
     , fileID
     , fileOwner
@@ -40,15 +81,20 @@ module System.FilePath.Find (
     , linkCount
     , specialDeviceID
     , fileMode
-    , filePerms
-    , anyPerms
     , accessTime
     , modificationTime
     , statusChangeTime
 
+    -- *** Convenience combinators for file status
+    , filePerms
+    , anyPerms
+
+    -- ** Combinators that operate on symbolic links
     , readLink
     , followStatus
 
+    -- ** Common binary operators, lifted as combinators
+    -- $binaryOperators
     , (~~?)
     , (/~?)
     , (==?)
@@ -57,20 +103,19 @@ module System.FilePath.Find (
     , (<?)
     , (>=?)
     , (<=?)
+    , (.&.?)
+
+    -- ** Combinators for gluing clauses together
     , (&&?)
     , (||?)
-
-    , (.&.?)
     ) where
 
 import Control.Monad (foldM, forM, liftM, liftM2)
-import Control.Monad.Fix (MonadFix)
 import Control.Monad.State (State(..), evalState)
 import Data.Bits (Bits, (.&.))
 import Data.List (sort)
 import System.Directory (getDirectoryContents)
-import System.FilePath ((</>), replaceFileName, takeDirectory, takeExtension,
-                        takeFileName)
+import System.FilePath ((</>), takeDirectory, takeExtension, takeFileName)
 import System.FilePath.GlobPattern (GlobPattern, (~~), (/~))
 import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
@@ -102,16 +147,30 @@ mkFI = FileInfo
 newtype FindClause a = FC { runFC :: State FileInfo a }
     deriving (Functor, Monad)
 
--- | Run the given find clause and return a pure value.
+-- | Run the given 'FindClause' on the given 'FileInfo' and return its
+-- result.  This can be useful if you are writing a function to pass
+-- to 'fold'.
+--
+-- Example:
+--
+-- @
+-- myFoldFunc :: a -> 'FileInfo' -> a
+-- myFoldFunc a i = let useThisFile = 'evalClause' ('fileName' '==?' \"foo\") i
+--                  in if useThisFile
+--                     then fiddleWith a
+--                     else a
+-- @
+evalClause :: FindClause a -> FileInfo -> a
+evalClause = evalState . runFC
+
 evalFI :: FindClause a
        -> FilePath
        -> Int
        -> F.FileStatus
        -> a
-evalFI m p d s = evalState (runFC m) (mkFI p d s)
+evalFI m p d s = evalClause m (mkFI p d s)
 
 mkFindClause :: (FileInfo -> (a, FileInfo)) -> FindClause a
-
 mkFindClause = FC . State
 
 -- | Return the current 'FileInfo'.
@@ -150,11 +209,12 @@ getDirContents dir = (sort . filter goodName) `liftM` getDirectoryContents dir
 -- 'RecursionPredicate'.  Lazily return a sorted list of all files
 -- matching the given 'FilterPredicate'.  Any errors that occur are
 -- dealt with by the given handler.
-findWithHandler :: (FilePath -> E.Exception -> IO [FilePath]) -- ^ error handler
-                -> RecursionPredicate -- ^ control recursion into subdirectories
-                -> FilterPredicate -- ^ decide whether a file appears in the result
-                -> FilePath -- ^ directory to start searching
-                -> IO [FilePath] -- ^ files that matched the 'FilterPredicate'
+findWithHandler ::
+    (FilePath -> E.Exception -> IO [FilePath]) -- ^ error handler
+    -> RecursionPredicate -- ^ control recursion into subdirectories
+    -> FilterPredicate -- ^ decide whether a file appears in the result
+    -> FilePath -- ^ directory to start searching
+    -> IO [FilePath] -- ^ files that matched the 'FilterPredicate'
 
 findWithHandler errHandler recurse filter path =
     E.handle (errHandler path) $ F.getSymbolicLinkStatus path >>= visit path 0
@@ -193,12 +253,13 @@ find = findWithHandler warnOnError
 -- run from \"left\" to \"right\", so it should be strict in its left
 -- argument to avoid space leaks.  If you need a right-to-left fold,
 -- use 'foldr' on the result of 'findWithHandler' instead.
-foldWithHandler :: (FilePath -> a -> E.Exception -> IO a) -- ^ error handler
-                -> RecursionPredicate -- ^ control recursion into subdirectories
-                -> (a -> FileInfo -> a) -- ^ function to fold with
-                -> a -- ^ seed value for fold
-                -> FilePath -- ^ directory to start searching
-                -> IO a -- ^ final value after folding
+foldWithHandler
+    :: (FilePath -> a -> E.Exception -> IO a) -- ^ error handler
+    -> RecursionPredicate -- ^ control recursion into subdirectories
+    -> (a -> FileInfo -> a) -- ^ function to fold with
+    -> a -- ^ seed value for fold
+    -> FilePath -- ^ directory to start searching
+    -> IO a -- ^ final value after folding
 
 foldWithHandler errHandler recurse f state path =
     E.handle (errHandler path state) $
@@ -231,18 +292,56 @@ fold = foldWithHandler warnOnError
     where warnOnError path a err = 
               hPutStrLn stderr (path ++ ": " ++ show err) >> return a
 
+-- | Unconditionally return 'True'.
 always :: FindClause Bool
 always = return True
 
+-- | Return the file name extension.
+--
+-- Example:
+--
+-- @
+-- 'extension' \"foo\/bar.txt\" => \".txt\"
+-- @
 extension :: FindClause FilePath
 extension = takeExtension `liftM` filePath
 
+-- | Return the file name, without the directory name.
+--
+-- What this means in practice:
+--
+-- @
+-- 'fileName' \"foo\/bar.txt\" => \"bar.txt\"
+-- @
+--
+-- Example:
+--
+-- @
+-- 'fileName' '==?' \"init.c\"
+-- @
 fileName :: FindClause FilePath
 fileName = takeFileName `liftM` filePath
 
+-- | Return the directory name, without the file name.
+--
+-- What this means in practice:
+--
+-- @
+-- 'directory' \"foo\/bar.txt\" => \"foo\"
+-- @
+--
+-- Example in a clause:
+--
+-- @
+-- let hasSuffix = 'liftOp' 'isSuffixOf'
+-- in directory \`hasSuffix\` \"tests\"
+-- @
 directory :: FindClause FilePath
 directory = takeDirectory `liftM` filePath
 
+-- | Run the given action in the 'IO' monad (using 'unsafePerformIO')
+-- if the current file is a symlink.  Hide errors by wrapping results
+-- in the 'Maybe' monad.
 withLink :: (FilePath -> IO a) -> FindClause (Maybe a)
 
 withLink f = do
@@ -253,10 +352,21 @@ withLink f = do
              Just `liftM` f path
         else Nothing
 
+-- | If the current file is a symbolic link, return 'Just' the target
+-- of the link, otherwise 'Nothing'.
 readLink :: FindClause (Maybe FilePath)
 
 readLink = withLink F.readSymbolicLink
 
+-- | If the current file is a symbolic link, return 'Just' the status
+-- of the ultimate endpoint of the link.  Otherwise (including in the
+-- case of an error), return 'Nothing'.
+--
+-- Example:
+--
+-- @
+-- 'statusType' \`liftM\` 'followStatus' '==?' 'RegularFile'
+-- @
 followStatus :: FindClause (Maybe F.FileStatus)
 
 followStatus = withLink F.getFileStatus
@@ -271,17 +381,40 @@ data FileType = BlockDevice
               | Unknown
                 deriving (Eq, Ord, Show)
 
+-- | Return the type of file currently being visited.
+--
+-- Example:
+--
+-- @
+-- 'fileType' '==?' 'RegularFile'
+-- @
 fileType :: FindClause FileType
 
-fileType = fType `liftM` fileStatus
-    where fType st | F.isBlockDevice st = BlockDevice
-          fType st | F.isCharacterDevice st = CharacterDevice
-          fType st | F.isNamedPipe st = NamedPipe
-          fType st | F.isRegularFile st = RegularFile
-          fType st | F.isDirectory st = Directory
-          fType st | F.isSymbolicLink st = SymbolicLink
-          fType st | F.isSocket st = Socket
-          fType _ = Unknown
+fileType = statusType `liftM` fileStatus
+
+-- | Return the type of a file.  This is much more useful for case
+-- analysis than the usual functions on 'F.FileStatus' values.
+statusType :: F.FileStatus -> FileType
+
+statusType st | F.isBlockDevice st = BlockDevice
+statusType st | F.isCharacterDevice st = CharacterDevice
+statusType st | F.isNamedPipe st = NamedPipe
+statusType st | F.isRegularFile st = RegularFile
+statusType st | F.isDirectory st = Directory
+statusType st | F.isSymbolicLink st = SymbolicLink
+statusType st | F.isSocket st = Socket
+statusType _ = Unknown
+
+-- $statusFunctions
+-- 
+-- These are simply lifted versions of the 'F.FileStatus' accessor
+-- functions in the "System.Posix.Files" module.  The definitions all
+-- have the following form:
+--
+-- @
+-- 'deviceID' :: 'FindClause' "System.Posix.Types".DeviceID
+-- 'deviceID' = "System.Posix.Files".deviceID \`liftM\` 'fileStatus'
+-- @
 
 deviceID :: FindClause T.DeviceID
 deviceID = F.deviceID `liftM` fileStatus
@@ -307,9 +440,17 @@ specialDeviceID = F.specialDeviceID `liftM` fileStatus
 fileMode :: FindClause T.FileMode
 fileMode = F.fileMode `liftM` fileStatus
 
+-- | Return the permission bits of the 'T.FileMode'.
 filePerms :: FindClause T.FileMode
 filePerms = (.&. 0777) `liftM` fileMode
 
+-- | Return 'True' if any of the given permission bits is set.
+--
+-- Example:
+--
+-- @
+-- 'anyPerms' 0444
+-- @
 anyPerms :: T.FileMode
          -> FindClause Bool
 anyPerms m = filePerms >>= \p -> return (p .&. m /= 0)
@@ -323,6 +464,10 @@ modificationTime = F.modificationTime `liftM` fileStatus
 statusChangeTime :: FindClause T.EpochTime
 statusChangeTime = F.statusChangeTime `liftM` fileStatus
 
+-- | Return 'True' if the given path exists, relative to the current
+-- file.  For example, if @\"foo\"@ is being visited, and you call
+-- contains @\"bar\"@, this combinator will return 'True' if
+-- @\"foo\/bar\"@ exists.
 contains :: FilePath -> FindClause Bool
 contains p = do
     d <- filePath
@@ -330,14 +475,31 @@ contains p = do
         E.handle (const (return False)) $
             F.getFileStatus (d </> p) >> return True
 
+-- | Lift a binary operator into the 'FindClause' monad, so that it
+-- becomes a combinator.  The left hand side of the combinator should
+-- be a @'FindClause' a@, while the right remains a normal value of
+-- type @a@.
 liftOp :: Monad m => (a -> b -> c) -> m a -> b -> m c
 
 liftOp f a b = a >>= \a' -> return (f a' b)
 
+-- $binaryOperators
+-- 
+-- These are lifted versions of the most commonly used binary
+-- operators.  They have the same fixities and associativities as
+-- their unlifted counterparts.  They are lifted using 'liftOp', like
+-- so:
+-- 
+-- @('==?') = 'liftOp' (==)@
+
+-- | Return 'True' if the current file's name matches the given
+-- 'GlobPattern'.
 (~~?) :: FindClause FilePath -> GlobPattern -> FindClause Bool
 (~~?) = liftOp (~~)
 infix 4 ~~?
 
+-- | Return 'True' if the current file's name does not match the given
+-- 'GlobPattern'.
 (/~?) :: FindClause FilePath -> GlobPattern -> FindClause Bool
 (/~?) = liftOp (/~)
 infix 4 /~?
@@ -358,10 +520,6 @@ infix 4 >?
 (<?) = liftOp (<)
 infix 4 <?
 
-(.&.?) :: Bits a => FindClause a -> a -> FindClause a
-(.&.?) = liftOp (.&.)
-infixl 7 .&.?
-
 (>=?) :: Ord a => FindClause a -> a -> FindClause Bool
 (>=?) = liftOp (>=)
 infix 4 >=?
@@ -369,6 +527,12 @@ infix 4 >=?
 (<=?) :: Ord a => FindClause a -> a -> FindClause Bool
 (<=?) = liftOp (<=)
 infix 4 <=?
+
+-- | This operator is useful to check if bits are set in a
+-- 'T.FileMode'.
+(.&.?) :: Bits a => FindClause a -> a -> FindClause a
+(.&.?) = liftOp (.&.)
+infixl 7 .&.?
 
 (&&?) :: FindClause Bool -> FindClause Bool -> FindClause Bool
 (&&?) = liftM2 (&&)
