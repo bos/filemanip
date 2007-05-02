@@ -1,5 +1,15 @@
+-- |
+-- Module:      System.FilePath.GlobPattern
+-- Copyright:   Bryan O'Sullivan
+-- License:     LGPL
+-- Maintainer:  Bryan O'Sullivan <bos@serpentine.com>
+-- Stability:   unstable
+-- Portability: everywhere
 module System.FilePath.GlobPattern (
+    -- * Glob patterns
+    -- $syntax
       GlobPattern
+    -- * Matching functions
     , (~~)
     , (/~)
     ) where
@@ -10,6 +20,29 @@ import Data.List (nub)
 import Data.Maybe (isJust)
 import System.FilePath (pathSeparator)
 
+-- $syntax
+--
+-- Basic glob pattern syntax is the same as for the Unix shell
+-- environment.
+-- 
+-- * @*@ matches everything up to a directory separator or end of
+-- string.
+--
+-- * @[/range/]@ matches any character in /range/.
+-- 
+-- * @[!/range/]@ matches any character /not/ in /range/.
+-- 
+-- * @\\@ escapes a character that might otherwise have special
+-- meaning.  For a literal @\"\\\"@ character, use @\"\\\\\"@.
+-- 
+-- There are two extensions to the traditional glob syntax, taken from
+-- modern Unix shells.
+--
+-- * @**@ matches everything, including a directory separator.
+-- 
+-- * @(/s1/|/s2/|/.../)@ matches any of the strings /s1/, /s2/, etc.
+
+-- | Glob pattern type.
 type GlobPattern = String
 
 spanClass :: Char -> String -> (String, String)
@@ -132,11 +165,14 @@ matchTerms (MatchDir:ts) cs = matchDir cs >>= matchTerms ts
 matchTerms (MatchChar:_) [] = fail "end of input"
 matchTerms (MatchChar:ts) (_:cs) = matchTerms ts cs
 
+-- | Match a file name against a glob pattern.
 (~~) :: FilePath -> GlobPattern -> Bool
 
 name ~~ pat = let terms = simplifyTerms (parseGlob pat)
               in (isJust . matchTerms terms) name
 
+-- | Match a file name against a glob pattern, but return 'True' if
+-- the match /fail/s.
 (/~) :: FilePath -> GlobPattern -> Bool
 
 (/~) = (not . ) . (~~)
