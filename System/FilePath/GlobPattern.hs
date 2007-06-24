@@ -32,12 +32,12 @@ import System.FilePath (pathSeparator)
 -- 
 -- * @[!/range/]@ matches any character /not/ in /range/.
 -- 
+-- There are three extensions to the traditional glob syntax, taken
+-- from modern Unix shells.
+--
 -- * @\\@ escapes a character that might otherwise have special
 -- meaning.  For a literal @\"\\\"@ character, use @\"\\\\\"@.
 -- 
--- There are two extensions to the traditional glob syntax, taken from
--- modern Unix shells.
---
 -- * @**@ matches everything, including a directory separator.
 -- 
 -- * @(/s1/|/s2/|/.../)@ matches any of the strings /s1/, /s2/, etc.
