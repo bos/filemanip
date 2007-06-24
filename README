@@ -4,6 +4,28 @@ FileManip: expressive file manipulation
 This package provides functions and combinators for searching,
 matching, and manipulating files.
 
+It provides four modules.
+
+System.FilePath.Find lets you search a filesystem hierarchy efficiently:
+
+  find always (extension ==? ".pl") >>= mapM_ remove
+
+System.FilePath.GlobPattern lets you perform glob-style pattern
+matching, without going through a regexp engine:
+
+  "foo.c" ~~ "*.c"  ==> True
+
+System.FilePath.Glob lets you do simple glob-style file name searches:
+
+  namesMatching "*/*.c"  ==>  ["foo/bar.c"]
+
+System.FilePath.Manip lets you rename files procedurally, edit files
+in place, or save old copies as backups:
+
+  modifyWithBackup (<.> "bak")
+                   (unlines . map (takeWhile (/= ',')) . lines)
+                   "myPoorFile.csv"
+
 
 To build and install:
 

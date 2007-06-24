@@ -1,7 +1,10 @@
 import Control.Monad
+import Codec.Compression.GZip
 import qualified Data.ByteString.Char8 as S
+import qualified Data.ByteString.Lazy as L
 import System.FilePath
 import System.FilePath.Find
+import System.FilePath.Glob
 import System.FilePath.Manip
 import Text.Regex.Posix ((=~))
 
@@ -68,3 +71,12 @@ recGrep :: String -> FilePath -> IO [(FilePath, Int, S.ByteString)]
 recGrep pat top = find always (fileType ==? RegularFile) top >>=
                   mapM ((,,) >>= flip grepFile pat) >>=
                   return . concat
+
+
+-- Decompress all gzip files matching a fixed glob pattern, and return
+-- the results as a single huge lazy ByteString.
+
+decomp :: IO L.ByteString
+
+decomp = namesMatching "*/*.gz" >>=
+         fmap L.concat . mapM (fmap decompress . L.readFile)
