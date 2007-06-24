@@ -249,10 +249,11 @@ find = findWithHandler warnOnError
 
 -- | Search a directory recursively, with recursion controlled by a
 -- 'RecursionPredicate'.  Fold over all files found.  Any errors that
--- occur are dealt with by the given handler.  The fold function is
--- run from \"left\" to \"right\", so it should be strict in its left
--- argument to avoid space leaks.  If you need a right-to-left fold,
--- use 'foldr' on the result of 'findWithHandler' instead.
+-- occur are dealt with by the given handler.  The fold is strict, and
+-- run from \"left\" to \"right\", so the folded function should be
+-- strict in its left argument to avoid space leaks.  If you need a
+-- right-to-left fold, use 'foldr' on the result of 'findWithHandler'
+-- instead.
 foldWithHandler
     :: (FilePath -> a -> E.Exception -> IO a) -- ^ error handler
     -> RecursionPredicate -- ^ control recursion into subdirectories
@@ -267,10 +268,12 @@ foldWithHandler errHandler recurse f state path =
   where visit state path depth st =
             if F.isDirectory st && evalFI recurse path depth st
             then traverse state path (succ depth) st
-            else return (f state (mkFI path depth st))
+            else let state' = f state (mkFI path depth st)
+                 in state' `seq` return state'
         traverse state dir depth dirSt = E.handle (errHandler dir state) $
             getDirContents dir >>=
-                flip foldM (f state (mkFI dir depth dirSt)) (\state name ->
+                let state' = f state (mkFI dir depth dirSt)
+                in state' `seq` flip foldM state' (\state name ->
                     E.handle (errHandler dir state) $
                     let path = dir </> name
                     in F.getSymbolicLinkStatus path >>= visit state path depth)
