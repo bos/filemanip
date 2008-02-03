@@ -1,7 +1,7 @@
 -- |
 -- Module:      System.FilePath.GlobPattern
 -- Copyright:   Bryan O'Sullivan
--- License:     LGPL
+-- License:     BSD3
 -- Maintainer:  Bryan O'Sullivan <bos@serpentine.com>
 -- Stability:   unstable
 -- Portability: everywhere
