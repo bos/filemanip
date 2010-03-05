@@ -10,13 +10,14 @@ module System.FilePath.Glob (
       namesMatching
     ) where
 
-import Control.Exception (handle)
 import Control.Monad (forM)
 import System.FilePath.GlobPattern ((~~))
 import System.Directory (doesDirectoryExist, doesFileExist,
                          getCurrentDirectory, getDirectoryContents)
 import System.FilePath (dropTrailingPathSeparator, splitFileName, (</>))
 import System.IO.Unsafe (unsafeInterleaveIO)
+
+import System.FilePath.Error (handle)
 
 -- | Return a list of names matching a glob pattern.  The list is
 -- generated lazily.
