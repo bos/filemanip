@@ -16,7 +16,8 @@ module System.FilePath.Manip (
     , modifyInPlace
     ) where
 
-import Control.Exception (bracket, bracket_, handle, throwIO)
+import System.FilePath.Error (bracket, bracket_, handle, throwIO)
+
 import Control.Monad (liftM)
 import Data.Bits ((.&.))
 import System.Directory (removeFile)

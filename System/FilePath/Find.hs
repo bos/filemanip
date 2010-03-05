@@ -119,7 +119,7 @@ import System.FilePath ((</>), takeDirectory, takeExtension, takeFileName)
 import System.FilePath.GlobPattern (GlobPattern, (~~), (/~))
 import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
-import qualified Control.Exception as E
+import qualified System.FilePath.Error as E
 import qualified System.Posix.Files as F
 import qualified System.Posix.Types as T
 
