@@ -23,7 +23,7 @@ Library
   else
     Build-Depends: base >= 2 && < 5,                        filepath, mtl, unix, extensible-exceptions
 
-  GHC-Options:    -Wall -O2
+  GHC-Options:    -Wall
   Exposed-Modules:
           System.FilePath.Find,
           System.FilePath.Glob,
