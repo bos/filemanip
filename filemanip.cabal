@@ -12,7 +12,7 @@ Description:        A Haskell library for working with files and directories.
 Cabal-version:      >= 1.6
 Build-type:         Simple
 
-Extra-Source-Files: README
+Extra-Source-Files: README.markdown
 
 Library
 
