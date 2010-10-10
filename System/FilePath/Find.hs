@@ -1,4 +1,5 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving #-}
+{-# LANGUAGE GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
+{-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- |
 -- Module:      System.FilePath.Find
@@ -110,6 +111,7 @@ module System.FilePath.Find (
     , (||?)
     ) where
 
+import Control.Exception
 import Control.Monad (foldM, forM, liftM, liftM2)
 import Control.Monad.State (State(..), evalState)
 import Data.Bits (Bits, (.&.))
@@ -119,9 +121,9 @@ import System.FilePath ((</>), takeDirectory, takeExtension, takeFileName)
 import System.FilePath.GlobPattern (GlobPattern, (~~), (/~))
 import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
-import qualified System.FilePath.Error as E
-import qualified System.Posix.Files as F
-import qualified System.Posix.Types as T
+import qualified System.PosixCompat.Files as F
+import qualified System.PosixCompat.Types as T
+import Prelude hiding (catch)
 
 -- | Information collected during the traversal of a directory.
 data FileInfo = FileInfo
@@ -210,27 +212,27 @@ getDirContents dir = (sort . filter goodName) `liftM` getDirectoryContents dir
 -- matching the given 'FilterPredicate'.  Any errors that occur are
 -- dealt with by the given handler.
 findWithHandler ::
-    (FilePath -> E.Exception -> IO [FilePath]) -- ^ error handler
+    (FilePath -> IOException -> IO [FilePath]) -- ^ error handler
     -> RecursionPredicate -- ^ control recursion into subdirectories
     -> FilterPredicate -- ^ decide whether a file appears in the result
     -> FilePath -- ^ directory to start searching
     -> IO [FilePath] -- ^ files that matched the 'FilterPredicate'
 
-findWithHandler errHandler recurse filter path =
-    E.handle (errHandler path) $ F.getSymbolicLinkStatus path >>= visit path 0
+findWithHandler errHandler recurse filt path0 =
+    handle (errHandler path0) $ F.getSymbolicLinkStatus path0 >>= visit path0 0
   where visit path depth st =
             if F.isDirectory st && evalFI recurse path depth st
               then unsafeInterleaveIO (traverse path (succ depth) st)
               else filterPath path depth st []
         traverse dir depth dirSt = do
-            names <- E.catch (getDirContents dir) (errHandler dir)
+            names <- catch (getDirContents dir) (errHandler dir)
             filteredPaths <- forM names $ \name -> do
                 let path = dir </> name
-                unsafeInterleaveIO $ E.handle (errHandler path)
+                unsafeInterleaveIO $ handle (errHandler path)
                     (F.getSymbolicLinkStatus path >>= visit path depth)
             filterPath dir depth dirSt (concat filteredPaths)
         filterPath path depth st result =
-            return $ if evalFI filter path depth st
+            return $ if evalFI filt path depth st
                 then path:result
                 else result
 
@@ -255,7 +257,7 @@ find = findWithHandler warnOnError
 -- right-to-left fold, use 'foldr' on the result of 'findWithHandler'
 -- instead.
 foldWithHandler
-    :: (FilePath -> a -> E.Exception -> IO a) -- ^ error handler
+    :: (FilePath -> a -> IOException -> IO a) -- ^ error handler
     -> RecursionPredicate -- ^ control recursion into subdirectories
     -> (a -> FileInfo -> a) -- ^ function to fold with
     -> a -- ^ seed value for fold
@@ -263,18 +265,18 @@ foldWithHandler
     -> IO a -- ^ final value after folding
 
 foldWithHandler errHandler recurse f state path =
-    E.handle (errHandler path state) $
+    handle (errHandler path state) $
         F.getSymbolicLinkStatus path >>= visit state path 0
   where visit state path depth st =
             if F.isDirectory st && evalFI recurse path depth st
             then traverse state path (succ depth) st
             else let state' = f state (mkFI path depth st)
                  in state' `seq` return state'
-        traverse state dir depth dirSt = E.handle (errHandler dir state) $
+        traverse state dir depth dirSt = handle (errHandler dir state) $
             getDirContents dir >>=
                 let state' = f state (mkFI dir depth dirSt)
                 in state' `seq` flip foldM state' (\state name ->
-                    E.handle (errHandler dir state) $
+                    handle (errHandler dir state) $
                     let path = dir </> name
                     in F.getSymbolicLinkStatus path >>= visit state path depth)
 
@@ -351,7 +353,7 @@ withLink f = do
     path <- filePath
     st <- fileStatus
     return $ if F.isSymbolicLink st
-        then unsafePerformIO $ E.handle (const (return Nothing)) $
+        then unsafePerformIO $ handle (\(_::IOException) -> return Nothing) $
              Just `liftM` f path
         else Nothing
 
@@ -475,7 +477,7 @@ contains :: FilePath -> FindClause Bool
 contains p = do
     d <- filePath
     return $ unsafePerformIO $
-        E.handle (const (return False)) $
+        handle (\(_::IOException) -> return False) $
             F.getFileStatus (d </> p) >> return True
 
 -- | Lift a binary operator into the 'FindClause' monad, so that it
