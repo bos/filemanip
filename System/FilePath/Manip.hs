@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleInstances, TypeSynonymInstances #-}
+{-# LANGUAGE FlexibleInstances, ScopedTypeVariables, TypeSynonymInstances #-}
 
 -- |
 -- Module:      System.FilePath.Manip
@@ -16,8 +16,7 @@ module System.FilePath.Manip (
     , modifyInPlace
     ) where
 
-import System.FilePath.Error (bracket, bracket_, handle, throwIO)
-
+import Control.Exception
 import Control.Monad (liftM)
 import Data.Bits ((.&.))
 import System.Directory (removeFile)
@@ -104,11 +103,11 @@ modifyWith after transform path =
     bracket (openFile path ReadMode) hClose $ \ih -> do
         (tmpPath, oh) <- mkstemp (path ++ "XXXXXX")
         let ignore = return ()
-            nukeTmp = handle (const ignore) (removeFile tmpPath)
-        handle (\e -> nukeTmp >> throwIO e) $ do
+            nukeTmp = handle (\(_::IOException) -> ignore) (removeFile tmpPath)
+        handle (\(e::IOException) -> nukeTmp >> throw e) $ do
             bracket_ ignore (hClose oh) $
                 readAll ih >>= return . transform >>= writeAll oh
-            handle (const nukeTmp) $ do
+            handle (\(_::IOException) -> nukeTmp) $ do
                 mode <- fileMode `liftM` getFileStatus path
                 setFileMode tmpPath (mode .&. 0777)
                 after path tmpPath
