@@ -1,5 +1,5 @@
-Name:               FileManip
-Version:            0.3.3
+Name:               filemanip
+Version:            0.4.0.0
 License:            BSD3
 License-File:       LICENSE
 Author:             Bryan O'Sullivan <bos@serpentine.com>
@@ -9,19 +9,12 @@ Category:           System
 Description:        A Haskell library for working with files and directories.
                     Includes code for pattern matching, finding files,
                     modifying file contents, and more.
-Cabal-version:      >= 1.2
+Cabal-version:      >= 1.6
 Build-type:         Simple
 
 Extra-Source-Files: README
 
-Flag splitBase
-  Description:     Choose the new, split-up base package.
-
 Library
-  if flag(splitBase)
-    Build-Depends: base >= 2 && < 5, bytestring, directory, filepath, mtl, unix, extensible-exceptions
-  else
-    Build-Depends: base >= 2 && < 5,                        filepath, mtl, unix, extensible-exceptions
 
   GHC-Options:    -Wall
   Exposed-Modules:
