@@ -1,5 +1,5 @@
 Name:               filemanip
-Version:            0.3.5.0
+Version:            0.3.5.1
 License:            BSD3
 License-File:       LICENSE
 Author:             Bryan O'Sullivan <bos@serpentine.com>
@@ -15,7 +15,7 @@ Build-type:         Simple
 Extra-Source-Files: README.markdown
 
 Library
-  build-depends: base < 5, bytestring, directory, filepath, mtl, unix-compat
+  build-depends: base < 5, bytestring, directory, filepath, mtl == 1.1.*, unix-compat
   if !os(windows)
     build-depends: unix
   if impl(ghc >= 6.10)
