@@ -113,7 +113,7 @@ module System.FilePath.Find (
 
 import Control.Exception
 import Control.Monad (foldM, forM, liftM, liftM2)
-import Control.Monad.State (State(..), evalState)
+import Control.Monad.State (State, evalState, get)
 import Data.Bits (Bits, (.&.))
 import Data.List (sort)
 import System.Directory (getDirectoryContents)
@@ -172,13 +172,10 @@ evalFI :: FindClause a
        -> a
 evalFI m p d s = evalClause m (mkFI p d s)
 
-mkFindClause :: (FileInfo -> (a, FileInfo)) -> FindClause a
-mkFindClause = FC . State
-
 -- | Return the current 'FileInfo'.
 fileInfo :: FindClause FileInfo
 
-fileInfo = mkFindClause $ \st -> (st, st)
+fileInfo = FC $ get
 
 -- | Return the name of the file being visited.
 filePath :: FindClause FilePath
