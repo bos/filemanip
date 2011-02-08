@@ -4,6 +4,8 @@ License:            BSD3
 License-File:       LICENSE
 Author:             Bryan O'Sullivan <bos@serpentine.com>
 Maintainer:         Bryan O'Sullivan
+Homepage:           http://bitbucket.org/bos/filemanip
+Bug-reports:        http://bitbucket.org/bos/filemanip/issues
 Synopsis:           Expressive file and directory manipulation for Haskell.
 Category:           System
 Description:        A Haskell library for working with files and directories.
