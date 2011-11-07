@@ -21,8 +21,8 @@ import Control.Monad (liftM)
 import Data.Bits ((.&.))
 import System.Directory (removeFile)
 import System.IO (Handle, IOMode(..), hClose, openFile)
-import System.Posix.Files (fileMode, getFileStatus, rename, setFileMode)
-import System.Posix.Temp (mkstemp)
+import System.PosixCompat.Files (fileMode, getFileStatus, rename, setFileMode)
+import System.PosixCompat.Temp (mkstemp)
 import qualified Data.ByteString.Char8 as B
 import qualified Data.ByteString.Lazy.Char8 as L
 import qualified System.IO as I
