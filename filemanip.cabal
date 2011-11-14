@@ -18,8 +18,6 @@ Extra-Source-Files: README.markdown
 
 Library
   build-depends: base < 5, bytestring, directory, filepath, mtl, unix-compat
-  if !os(windows)
-    build-depends: unix
   if impl(ghc >= 6.10)
     build-depends:
       base >= 4
