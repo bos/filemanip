@@ -7,15 +7,15 @@ matching, and manipulating files.
 # Get involved!
 
 Please report bugs via the
-[bitbucket issue tracker](http://bitbucket.org/bos/attoparsec/filemanip).
+[github issue tracker](https://github.com/bos/filemanip/issues).
 
-Master [Mercurial repository](http://bitbucket.org/bos/filemanip):
-
-* `hg clone http://bitbucket.org/bos/filemanip`
-
-There's also a [git mirror](http://github.com/bos/filemanip):
+Master [git repository](http://github.com/bos/filemanip):
 
 * `git clone git://github.com/bos/filemanip.git`
+
+There's also a [Mercurial mirror](http://bitbucket.org/bos/filemanip):
+
+* `hg clone https://bitbucket.org/bos/filemanip`
 
 (You can create and contribute changes using either Mercurial or git.)
 
