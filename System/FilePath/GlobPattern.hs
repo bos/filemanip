@@ -117,8 +117,9 @@ simplifyTerms (MatchClass True (SRange a@[_] []):as) =
 simplifyTerms (MatchGroup []:as) = simplifyTerms as
 simplifyTerms (MatchGroup gs:as) =
     case commonPrefix gs of
-    (p,[]) -> simplifyTerms (MatchLiteral p : as)
-    (p,ss) -> simplifyTerms (MatchLiteral p : MatchGroup ss : as)
+    (p ,[]) -> simplifyTerms (MatchLiteral p : as)
+    ("",ss) -> MatchGroup ss : simplifyTerms as
+    (p ,ss) -> simplifyTerms (MatchLiteral p : MatchGroup ss : as)
 simplifyTerms (a:as) = a:simplifyTerms as
 
 commonPrefix :: [String] -> (String, [String])
