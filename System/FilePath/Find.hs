@@ -111,7 +111,8 @@ module System.FilePath.Find (
     , (||?)
     ) where
 
-import Control.Exception
+import qualified Control.Exception as E
+import Control.Exception (IOException, handle)
 import Control.Monad (foldM, forM, liftM, liftM2)
 import Control.Monad.State (State, evalState, get)
 import Data.Bits (Bits, (.&.))
@@ -123,7 +124,6 @@ import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
 import qualified System.PosixCompat.Files as F
 import qualified System.PosixCompat.Types as T
-import Prelude hiding (catch)
 
 -- | Information collected during the traversal of a directory.
 data FileInfo = FileInfo
@@ -222,7 +222,7 @@ findWithHandler errHandler recurse filt path0 =
               then unsafeInterleaveIO (traverse path (succ depth) st)
               else filterPath path depth st []
         traverse dir depth dirSt = do
-            names <- catch (getDirContents dir) (errHandler dir)
+            names <- E.catch (getDirContents dir) (errHandler dir)
             filteredPaths <- forM names $ \name -> do
                 let path = dir </> name
                 unsafeInterleaveIO $ handle (errHandler path)
