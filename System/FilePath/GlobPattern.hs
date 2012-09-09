@@ -15,6 +15,7 @@ module System.FilePath.GlobPattern (
     ) where
 
 import Control.Arrow (second)
+import Control.Monad (msum)
 import Data.Ix (Ix, inRange)
 import Data.List (nub)
 import Data.Maybe (isJust)
@@ -117,8 +118,9 @@ simplifyTerms (MatchClass True (SRange a@[_] []):as) =
 simplifyTerms (MatchGroup []:as) = simplifyTerms as
 simplifyTerms (MatchGroup gs:as) =
     case commonPrefix gs of
-    (p,[]) -> simplifyTerms (MatchLiteral p : as)
-    (p,ss) -> simplifyTerms (MatchLiteral p : MatchGroup ss : as)
+    (p ,[]) -> simplifyTerms (MatchLiteral p : as)
+    ("",ss) -> MatchGroup ss : simplifyTerms as
+    (p ,ss) -> simplifyTerms (MatchLiteral p : MatchGroup ss : as)
 simplifyTerms (a:as) = a:simplifyTerms as
 
 commonPrefix :: [String] -> (String, [String])
@@ -143,11 +145,8 @@ matchTerms (MatchClass k c:ts) cs = matchClass cs >>= matchTerms ts
     where matchClass (b:bs) | (inClass && k) || not (inClass || k) = return bs
                             where inClass = b `inSRange` c
           matchClass _ = fail "no match"
-matchTerms (MatchGroup g:ts) cs = matchGroup g cs >>= matchTerms ts
-    where matchGroup g' as | any null g' = return as
-          matchGroup g' (a:as) | a `elem` map head g' =
-                                   matchGroup (map tail g') as
-          matchGroup _ _ = fail "not in group"
+matchTerms (MatchGroup g:ts) cs = msum (map matchGroup g)
+    where matchGroup g = matchTerms (MatchLiteral g : ts) cs
 matchTerms [MatchAny] _ = return ()
 matchTerms (MatchAny:ts) cs = matchAny cs >>= matchTerms ts
     where matchAny [] = fail "no match"
