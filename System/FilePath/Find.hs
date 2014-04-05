@@ -90,6 +90,10 @@ module System.FilePath.Find (
     , filePerms
     , anyPerms
 
+    -- ** Combinators for canonical path and name
+    , canonicalPath
+    , canonicalName
+
     -- ** Combinators that operate on symbolic links
     , readLink
     , followStatus
@@ -117,7 +121,7 @@ import Control.Monad (foldM, forM, liftM, liftM2)
 import Control.Monad.State (State, evalState, get)
 import Data.Bits (Bits, (.&.))
 import Data.List (sort)
-import System.Directory (getDirectoryContents)
+import System.Directory (getDirectoryContents, canonicalizePath)
 import System.FilePath ((</>), takeDirectory, takeExtension, takeFileName)
 import System.FilePath.GlobPattern (GlobPattern, (~~), (/~))
 import System.IO (hPutStrLn, stderr)
@@ -340,6 +344,17 @@ fileName = takeFileName `liftM` filePath
 -- @
 directory :: FindClause FilePath
 directory = takeDirectory `liftM` filePath
+
+-- | Return the canonical path of the file being visited.
+--
+-- See `canonicalizePath` for details of what canonical path means.
+canonicalPath :: FindClause FilePath
+canonicalPath = (unsafePerformIO . canonicalizePath) `liftM` filePath
+
+-- | Return the canonical name of the file (canonical path with the
+-- directory part removed).
+canonicalName :: FindClause FilePath
+canonicalName = takeFileName `liftM` canonicalPath
 
 -- | Run the given action in the 'IO' monad (using 'unsafePerformIO')
 -- if the current file is a symlink.  Hide errors by wrapping results
