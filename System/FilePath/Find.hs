@@ -29,7 +29,7 @@
 -- Because 'FindClause' is a monad, you can use the usual monad
 -- machinery to, for example, lift pure functions into it.
 --
--- Here's a clause that will return 'False' for any file whose
+-- Here's a clause that will return 'True' for any file whose
 -- directory name contains the word @\"temp\"@.
 --
 -- @
