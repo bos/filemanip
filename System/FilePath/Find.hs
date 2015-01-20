@@ -147,7 +147,7 @@ mkFI = FileInfo
 -- construction of combinators.  Wraps the 'State' monad, but doesn't
 -- allow 'get' or 'put'.
 newtype FindClause a = FC { runFC :: State FileInfo a }
-    deriving (Functor, Monad)
+    deriving (Functor, Applicative, Monad)
 
 -- | Run the given 'FindClause' on the given 'FileInfo' and return its
 -- result.  This can be useful if you are writing a function to pass
