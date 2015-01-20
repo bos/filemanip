@@ -152,7 +152,7 @@ matchTerms (MatchAny:ts) cs = matchAny cs >>= matchTerms ts
     where matchAny [] = fail "no match"
           matchAny cs' = case matchTerms ts cs' of
                           Nothing -> matchAny (tail cs')
-                          _ -> return cs
+                          _ -> return cs'
 matchTerms [MatchDir] cs | pathSeparator `elem` cs = fail "path separator"
                          | otherwise = return ()
 matchTerms (MatchDir:ts) cs = matchDir cs >>= matchTerms ts

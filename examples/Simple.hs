@@ -33,7 +33,7 @@ renameCppToC path = find always (extension ==? ".cpp") path >>=
 
 noRCS :: RecursionPredicate
 
-noRCS = (`elem` ["_darcs","SCCS","CVS",".svn",".hg",".git"]) `liftM` fileName
+noRCS = (`notElem` ["_darcs","SCCS","CVS",".svn",".hg",".git"]) `liftM` fileName
 
 cSources :: FilePath -> IO [FilePath]
 
