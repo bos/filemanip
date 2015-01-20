@@ -1,4 +1,4 @@
-{-# LANGUAGE GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
+{-# LANGUAGE CPP, GeneralizedNewtypeDeriving, ScopedTypeVariables #-}
 {-# OPTIONS_GHC -fno-warn-orphans #-}
 
 -- |
@@ -115,6 +115,9 @@ module System.FilePath.Find (
     , (||?)
     ) where
 
+#if !MIN_VERSION_base(4,8,0)
+import Control.Applicative (Applicative)
+#endif
 import qualified Control.Exception as E
 import Control.Exception (IOException, handle)
 import Control.Monad (foldM, forM, liftM, liftM2)
@@ -151,7 +154,7 @@ mkFI = FileInfo
 -- construction of combinators.  Wraps the 'State' monad, but doesn't
 -- allow 'get' or 'put'.
 newtype FindClause a = FC { runFC :: State FileInfo a }
-    deriving (Functor, Monad)
+    deriving (Functor, Applicative, Monad)
 
 -- | Run the given 'FindClause' on the given 'FileInfo' and return its
 -- result.  This can be useful if you are writing a function to pass
@@ -295,7 +298,7 @@ fold :: RecursionPredicate
      -> IO a
 
 fold = foldWithHandler warnOnError
-    where warnOnError path a err = 
+    where warnOnError path a err =
               hPutStrLn stderr (path ++ ": " ++ show err) >> return a
 
 -- | Unconditionally return 'True'.
@@ -423,7 +426,7 @@ statusType st | F.isSocket st = Socket
 statusType _ = Unknown
 
 -- $statusFunctions
--- 
+--
 -- These are simply lifted versions of the 'F.FileStatus' accessor
 -- functions in the "System.Posix.Files" module.  The definitions all
 -- have the following form:
@@ -501,12 +504,12 @@ liftOp :: Monad m => (a -> b -> c) -> m a -> b -> m c
 liftOp f a b = a >>= \a' -> return (f a' b)
 
 -- $binaryOperators
--- 
+--
 -- These are lifted versions of the most commonly used binary
 -- operators.  They have the same fixities and associativities as
 -- their unlifted counterparts.  They are lifted using 'liftOp', like
 -- so:
--- 
+--
 -- @('==?') = 'liftOp' (==)@
 
 -- | Return 'True' if the current file's name matches the given
