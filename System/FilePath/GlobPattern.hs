@@ -157,7 +157,6 @@ matchTerms [MatchDir] cs | pathSeparator `elem` cs = fail "path separator"
                          | otherwise = return ()
 matchTerms (MatchDir:ts) cs = matchDir cs >>= matchTerms ts
     where matchDir [] = fail "no match"
-          matchDir (c:_) | c == pathSeparator = fail "path separator"
           matchDir cs' = case matchTerms ts cs' of
                          Nothing -> matchDir $ tail cs'
                          _ -> return cs'
