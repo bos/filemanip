@@ -126,6 +126,7 @@ import Data.Bits (Bits, (.&.))
 import Data.List (sort)
 import System.Directory (getDirectoryContents, canonicalizePath)
 import System.FilePath ((</>), takeDirectory, takeExtension, takeFileName)
+import System.FilePath.Glob (unsafeInterleaveIO')
 import System.FilePath.GlobPattern (GlobPattern, (~~), (/~))
 import System.IO (hPutStrLn, stderr)
 import System.IO.Unsafe (unsafeInterleaveIO, unsafePerformIO)
@@ -226,13 +227,13 @@ findWithHandler errHandler recurse filt path0 =
     handle (errHandler path0) $ F.getSymbolicLinkStatus path0 >>= visit path0 0
   where visit path depth st =
             if F.isDirectory st && evalFI recurse path depth st
-              then unsafeInterleaveIO (traverse path (succ depth) st)
+              then unsafeInterleaveIO' (traverse path (succ depth) st)
               else filterPath path depth st []
         traverse dir depth dirSt = do
             names <- E.catch (getDirContents dir) (errHandler dir)
             filteredPaths <- forM names $ \name -> do
                 let path = dir </> name
-                unsafeInterleaveIO $ handle (errHandler path)
+                unsafeInterleaveIO' $ handle (errHandler path)
                     (F.getSymbolicLinkStatus path >>= visit path depth)
             filterPath dir depth dirSt (concat filteredPaths)
         filterPath path depth st result =
